@@ -3,9 +3,11 @@ import re
 from datetime import date
 import sqlite3
 import requests
+import asyncio
 import os
-import ConfigParser
-
+import sys
+import configparser as ConfigParser
+import clashroyale
 
 ###########################
 ### CONFIGURATION FILE
@@ -41,14 +43,17 @@ inputCsvFile = 'tmpCsvFile.csv'
 ############################
 ### initDb()
 ### Check DB existance and create it
+### i :
+###     i_dbFile : string : db file
+### r : conn : db connector
 ############################
-def initDb():
+def initDb(i_dbFile):
     # init var
     b_history = False
     b_member = False
 
     # connect db file
-    conn = sqlite3.connect(dbFileName)
+    conn = sqlite3.connect(i_dbFile)
     c = conn.cursor()
 
     # get db tables
@@ -77,8 +82,8 @@ def initDb():
     # commit updates   
     conn.commit()
 
-    # close db    
-    conn.close()
+    # return db    
+    return conn
 
 ############################
 ### is_downloadable(i_url)
@@ -98,28 +103,7 @@ def is_downloadable(i_url):
         return False
     if 'html' in content_type.lower():
         return False
-    return True
-
-############################
-### getCsvFile()
-### download CSV file on CRAPI
-### r : bolean : (true -> downloaded / false)
-############################
-def getCsvFile():
-    # build full URL
-    url = apiUrl+clanId+'/'+fileType
-
-    # check if url exists and is downloadable
-    if is_downloadable(url) == True:
-        # request with GET
-        r = requests.get(url)
-
-        # parse content into csv file
-        with open(inputCsvFile, 'wb') as f:  
-            f.write(r.content)
-
-        return True
-    return False
+    return True 
 
 ############################
 ### addHistory(i_history, i_conn)
@@ -248,23 +232,22 @@ def memberInClan(i_listeMembres, i_conn):
     i_conn.commit()
 
 ############################
-### getConfig():
+### getConfig(i_iniFile):
 ### Read ini file
+### i :
+###     i_iniFile : string : configuration file
 ### r : boolean : true -> ini file read and correct / false
 ############################
-def getConfig():
-    # declare global var
+def getConfig(i_iniFile):
     global dbFileName
     global apiUrl
     global clanId
+    global playerId
     global fileType
+    global apiToken
         
-    # read ini file
     config = ConfigParser.ConfigParser()
-    config.read(iniFile)
-
-    # try to get each ini files
-    # in case of error, return false
+    config.read(i_iniFile)
     try:
         dbFileName = config.get('DEFAULT', 'dbFileName')
     except:
@@ -278,74 +261,230 @@ def getConfig():
     except:
         return False;
     try:
+        playerId = config.get('DEFAULT', 'playerId')
+    except:
+        return False;       
+    try:
         fileType = config.get('DEFAULT', 'fileType')
+    except:
+        return False;
+    try:
+        apiToken = config.get('DEFAULT', 'apiToken')
     except:
         return False;
     return True
 
 ############################
-### main():
-### main function
+### getJson()
+### download CSV file on CRAPI
+### r : bolean : (true -> downloaded / false)
 ############################
-def main():
-    # initialise list of dico
-    listeMembers = []
-    history = []
+async def getJson():
+     # initialise list of dico
+    r_listeMembers = []
+    r_history = []
     
     # get current date
     today = date.today()
 
-    # read ini file
-    print ("Read INI file: ")
-    if getConfig() == True:
-        print ("               OK")
-        # if successfull, download CSV files
-        print ("Download CSV file: ")
-        if getCsvFile() == True:
-            print ("                  OK")
-            # if successfull, parse CSV file
-            with open(inputCsvFile) as csvfile:
-                reader = csv.DictReader(csvfile)
+    # Basic functionality
+    client = clashroyale.RoyaleAPI(apiToken, is_async=True)
 
-                # for each CSV row, build member list and history list
-                for row in reader:
-                    lineMember={F_TAG:row[F_TAG],
-                                F_NAME:re.sub("[^a-zA-Z0-9_@ ]", "", row[F_NAME])}
+    try:
+        profile = await client.get_player(playerId)
+        #print(repr(profile))
+        #print(profile.name)
+    except:
+        print ('error profile ID')
 
-                    lineHistory={F_TAG:row[F_TAG],
-                                F_DATE:str(today),
-                                F_ROLE:row[F_ROLE],
-                                F_EXPLEVEL:int(row[F_EXPLEVEL]),
-                                F_TROPHIES:int(row[F_TROPHIES]),
-                                F_CLANRANK:int(row[F_CLANRANK]),
-                                F_DONATIONS:int(row[F_DONATIONS]),
-                                F_DONATIONSRECEIVED:int(row[F_DONATIONSRECEIVED])}
-                    listeMembers.append(lineMember)
-                    history.append(lineHistory)
-            # check or create DB
-            initDb()
+    try:
+        await asyncio.sleep(1)
+        clan = await profile.get_clan()
+        #print(clan)
+        #print(clan.member_count) 
+        for member in clan.members:
+            lineMember={F_TAG:member['tag'],
+                        F_NAME:re.sub("[^a-zA-Z0-9_@ ]", "", member['name'])}
 
-            # open DB
-            conn = sqlite3.connect(dbFileName)
-         
-            # add new members in DB
-            createMembers(listeMembers, conn)
-            # update member presence in clan in DB
-            memberInClan(listeMembers, conn)
-            # store history in DB
-            addHistory(history,conn)
+            lineHistory={F_TAG:member['tag'],
+                        F_DATE:str(today),
+                        F_ROLE:member['role'],
+                        F_EXPLEVEL:int(member['expLevel']),
+                        F_TROPHIES:int(member['trophies']),
+                        F_CLANRANK:int(member['rank']),
+                        F_DONATIONS:int(member['donations']),
+                        F_DONATIONSRECEIVED:int(member['donationsReceived'])}
+            r_listeMembers.append(lineMember)
+            r_history.append(lineHistory)
+    except:
+        print ('error clan ID')
 
-            # close DB
-            conn.close()
+    client.close()
+    return r_listeMembers, r_history
 
-            # remove temporary CSV file
-            os.remove(inputCsvFile)
+############################
+### getJson()
+### download CSV file on CRAPI
+### r : bolean : (true -> downloaded / false)
+############################
+def getJsonWithCache():
+     # initialise list of dico
+    r_listeMembers = []
+    r_history = []
+    
+    # get current date
+    today = date.today()
 
-########################################################
-########################################################
-### ENTRY POINT
-########################################################
-########################################################        
-if __name__ == "__main__":    
+    # Basic functionality
+    client = clashroyale.RoyaleAPI(apiToken,cache_fp='cache.db',cache_expires=10)
+
+    try:
+        profile = client.get_player(playerId)
+        #print(repr(profile))
+        #print(profile.name)
+    except:
+        print ('error profile ID')
+    
+    try:
+        clan = profile.get_clan()
+        for member in clan.members:
+            lineMember={F_TAG:member['tag'],
+                        F_NAME:re.sub("[^a-zA-Z0-9_@ ]", "", member['name'])}
+
+            lineHistory={F_TAG:member['tag'],
+                        F_DATE:str(today),
+                        F_ROLE:member['role'],
+                        F_EXPLEVEL:int(member['expLevel']),
+                        F_TROPHIES:int(member['trophies']),
+                        F_CLANRANK:int(member['rank']),
+                        F_DONATIONS:int(member['donations']),
+                        F_DONATIONSRECEIVED:int(member['donationsReceived'])}
+            r_listeMembers.append(lineMember)
+            r_history.append(lineHistory)
+    except:
+        print ('error clan ID')
+
+    try:
+        warList = client.get_clan_war_log(clanId)
+        print (warList[0]['participants'][0]['tag'])
+        print (warList[0]['participants'][0]['name'])
+        print (warList[0]['participants'][0]['collectionDayBattlesPlayed'])
+        print (warList[0]['participants'][0]['battlesPlayed'])
+
+    except:
+        print ('error clan war')
+
+    client.close()
+    return r_listeMembers, r_history
+
+############################
+### getCsvFile(i_csvFile)
+### download CSV file on CRAPI
+### i :
+###     i_csvFile : string : csv file
+### r : bolean : (true -> downloaded / false)
+############################
+def getCsvFile(i_csvFile):
+    url = apiUrl+clanId+'/'+fileType
+
+    if is_downloadable(url) == True:
+    
+        r = requests.get(url)
+
+        with open(i_csvFile, 'wb') as f:  
+            f.write(r.content)
+
+        return True
+    return False
+
+############################
+### parseCsvFile(i_csvFile):
+### Read ini file
+### i :
+###     i_csvFile : string : csv file
+### r : boolean : true -> ini file read and correct / false
+############################
+def parseCsvFile(i_csvFile):
+    # initialise list of dico
+    r_listeMembers = []
+    r_history = []
+    
+    # get current date
+    today = date.today()
+
+    with open(i_csvFile, newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+
+        # for each CSV row, build member list and history list
+        for row in reader:
+            lineMember={F_TAG:row[F_TAG],
+                        F_NAME:re.sub("[^a-zA-Z0-9_@ ]", "", row[F_NAME])}
+
+            lineHistory={F_TAG:row[F_TAG],
+                        F_DATE:str(today),
+                        F_ROLE:row[F_ROLE],
+                        F_EXPLEVEL:int(row[F_EXPLEVEL]),
+                        F_TROPHIES:int(row[F_TROPHIES]),
+                        F_CLANRANK:int(row[F_CLANRANK]),
+                        F_DONATIONS:int(row[F_DONATIONS]),
+                        F_DONATIONSRECEIVED:int(row[F_DONATIONSRECEIVED])}
+            r_listeMembers.append(lineMember)
+            r_history.append(lineHistory)
+    return r_listeMembers, r_history
+
+############################
+### main():
+############################  
+def main():
+    listeMembers = []
+    history = []
+
+    currentPath = os.path.dirname(os.path.abspath(__file__))+'/'
+
+    sys.stdout.write ('read ini file : ')
+    if getConfig(currentPath+iniFile) == True:
+        print ('done')
+        if (fileType == 'csv'):
+            sys.stdout.write ('download CSV file : ')
+            if getCsvFile(currentPath+inputCsvFile) == True:
+                print ('done')
+                sys.stdout.write ('parse CSV file : ')
+                listeMembers, history = parseCsvFile(currentPath+inputCsvFile)
+                 
+                os.remove(currentPath+inputCsvFile)
+            else:
+                print ("failed")
+        elif (fileType == 'json'):
+            sys.stdout.write ('get JSON DATA : ')
+
+            listeMembers, history = getJsonWithCache()
+            #loop = asyncio.get_event_loop()
+            #listeMembers, history = loop.run_until_complete(getJson())
+            
+        if ((len(listeMembers) > 0) and (len(history) > 0)):
+            print ('done')
+            
+            #print (history)
+            print ('init DB : ')
+            # DEBUG conn = initDb(currentPath+dbFileName)
+
+            print ('           . Create new members')
+            # DEBUG createMembers(listeMembers, conn)
+            print ('           . Remove old members')
+            # DEBUG memberInClan(listeMembers, conn)
+            print ('           . Update history')
+            # DEBUG addHistory(history,conn)
+
+            print ('Close DB')
+            # DEBUG conn.close()
+        else:
+            print ("failed")
+    else:
+        print ("failed") 
+
+#################################################
+# ENTRY POINT
+#################################################  
+if __name__ == "__main__":  
     main()    
     
