@@ -2,3 +2,4 @@
 *.db
 *.bat
 *.cmd
+tools/*.exe
