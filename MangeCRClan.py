@@ -31,6 +31,7 @@ F_BATTLESPLAYED = 'battlesPlayed'
 F_PREPAPLAYED = 'collectionDayBattlesPlayed'
 F_DATEWAR = 'DateWar'
 
+F_CLANNAME = 'clanName'
 F_CLANDESCRIPTION = 'description'
 F_MEMBERCOUNT = 'memberCount'
 F_REQUIREDSCORE = 'requiredScore'
@@ -100,7 +101,7 @@ def initDb(i_dbFile):
     # if T_CLAN table doesn't  exist, create it
     if b_clan == False:
         reqCreate = "CREATE TABLE {}({} text, {} text, {} int, {} int)".format(T_CLAN,
-                                F_NAME, F_CLANDESCRIPTION, F_MEMBERCOUNT, F_REQUIREDSCORE)
+                                F_CLANNAME, F_CLANDESCRIPTION, F_MEMBERCOUNT, F_REQUIREDSCORE)
         c.execute(reqCreate)
 
     # if T_CLANWAR table doesn't  exist, create it
@@ -316,7 +317,7 @@ def updateClan(i_clan, i_conn):
     cursor = i_conn.cursor()
 
     # build a request to find if an existing clan is recorded
-    reqFound = "SELECT * FROM {} WHERE {} = '{}';".format(T_CLAN, F_NAME, i_clan[F_NAME])
+    reqFound = "SELECT * FROM {} WHERE {} = '{}';".format(T_CLAN, F_CLANNAME, i_clan[F_CLANNAME])
     
     # execute the request
     cursor.execute(reqFound)
@@ -325,7 +326,7 @@ def updateClan(i_clan, i_conn):
     if (cursor.fetchone() != None):
         # update inclan field in DB (set to 0)
         reqUpdate="UPDATE {} SET {} = '{}', {} = '{}', {} = {}, {} = {};".format(T_CLAN, 
-                        F_NAME, i_clan[F_NAME], 
+                        F_CLANNAME, i_clan[F_CLANNAME], 
                         F_CLANDESCRIPTION, i_clan[F_CLANDESCRIPTION],
                         F_MEMBERCOUNT, i_clan[F_MEMBERCOUNT],
                         F_REQUIREDSCORE, i_clan[F_REQUIREDSCORE]
@@ -335,8 +336,8 @@ def updateClan(i_clan, i_conn):
     else:
         # build the add request
         reqAdd = "INSERT INTO {}({},{},{},{}) VALUES ('{}','{}',{},{});".format(T_CLAN,
-                    F_NAME, F_CLANDESCRIPTION, F_MEMBERCOUNT, F_REQUIREDSCORE,
-                    i_clan[F_NAME], i_clan[F_CLANDESCRIPTION], i_clan[F_MEMBERCOUNT], i_clan[F_REQUIREDSCORE] )
+                    F_CLANNAME, F_CLANDESCRIPTION, F_MEMBERCOUNT, F_REQUIREDSCORE,
+                    i_clan[F_CLANNAME], i_clan[F_CLANDESCRIPTION], i_clan[F_MEMBERCOUNT], i_clan[F_REQUIREDSCORE] )
         # execute it
         cursor.execute(reqAdd)
     # commit updates
@@ -432,7 +433,7 @@ def getJsonWithCache():
             r_history.append(lineHistory)
 
         # get clan data
-        r_clan ={F_NAME:removeSpecialChars(clan[F_NAME]),
+        r_clan ={F_CLANNAME:removeSpecialChars(clan[F_NAME]),
                  F_CLANDESCRIPTION:removeSpecialChars(clan[F_CLANDESCRIPTION]),
                  F_MEMBERCOUNT:int(clan[F_MEMBERCOUNT]),
                  F_REQUIREDSCORE:int(clan[F_REQUIREDSCORE])
