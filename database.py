@@ -49,6 +49,36 @@ def OpenDb(i_dbFile):
 
 def CloseDb(i_conn):
     i_conn.close()
+
+############################
+### getGdcNbrOfFailsFromDb(i_conn):
+### Return member list and tags, stored
+### in DB
+### i :
+###     i_conn : db : db connector
+### r : list : all names with number of fails
+############################
+def getGdcFailCountFromDb(i_conn):
+    gdcFails = []
+    # get DB cursor
+    cursor = i_conn.cursor()
+
+    # build a requestion to find if a date log is already done
+    reqFound = "SELECT {}, {} FROM {} WHERE {} = {};".format(conf.F_TAG, conf.F_NAME, conf.T_MEMBER, conf.F_INCLAN, 1)
+    
+    # execute the request
+    for row in cursor.execute(reqFound):
+        # build a requestion to count
+        reqCount = "SELECT COUNT(*) FROM {} WHERE {} = '{}';".format(conf.T_CLANWAR, conf.F_TAG, row[0])
+        cursorCount = i_conn.cursor()
+        cursorCount.execute(reqCount)
+        result = cursorCount.fetchone()
+        numberOfFail = result[0]
+        if numberOfFail > 0:
+            gdcFails.append([row[0], row[1],numberOfFail])
+
+    return gdcFails
+
 ############################
 ### getPresFromDb(i_conn):
 ### Return member list and presentation, stored

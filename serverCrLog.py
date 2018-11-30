@@ -3,10 +3,11 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+from dash.dependencies import Input, Output
 import sys
 import os
 from datetime import date, datetime
-from dash.dependencies import Input, Output
+from operator import itemgetter
 
 import utils
 import conf
@@ -77,11 +78,31 @@ def tab_gdc():
     # get DATA from DB
     conn = db.OpenDb(currentPath+dbFileName)
     nbr, dates, names, prepaWar, finalWar = db.getGdcFromDb(conn)
+    gdcFailList = db.getGdcFailCountFromDb(conn)
+    gdcFailList = sorted(gdcFailList, key=itemgetter(2), reverse = True)
     db.CloseDb(conn)
+
+    listNames = []
+    listFailCount = []
+
+    for ligne in gdcFailList:
+        listNames.append(ligne[1])
+        listFailCount.append(ligne[2])
 
     return html.Div(children=[
         html.H4(children='Historique des GDC'),
         # Body
+        dcc.Graph(
+            id='graph-gdc',
+            figure={
+                'data': [
+                    {'x': listNames, 'y': listFailCount, 'type': 'bar', 'name': u'Dons reçus'},
+                ],
+                'layout': {
+                    'title': u'Nombre de fails'
+                }
+            }
+        ),
         html.Table(
             [
                 html.Tr( [html.Th("Date"), html.Th("Nom"), html.Th("Préparation"), html.Th("Combat final")] )
