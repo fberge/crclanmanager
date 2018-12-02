@@ -148,39 +148,76 @@ def tab_presentations():
 ### live repport of donations and GDC
 ############################
 def tab_general():
+    global history
     clan, history, clanWar, dateWar = cr.getJsonWithCache(apiToken, playerId, clanId)
     currentDate = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
+
+    maxDonationValue = 0
+    minDonationValue = 6000
+    # get min and max donatin values
+    for hist in history:
+        if hist[2] > maxDonationValue:
+            maxDonationValue = hist[2]
+        if hist[2] < minDonationValue:
+            minDonationValue = hist[2] 
+
+    limiteClanDonation = conf.K_CLANLIMITE
+
+    if maxDonationValue < limiteClanDonation:
+        limiteClanDonation = maxDonationValue
+
+    if minDonationValue > limiteClanDonation:
+        limiteClanDonation = minDonationValue
+
+    marks = []
+    if minDonationValue > 100:
+        minMark=minDonationValue+(100-(minDonationValue%100))
+    else:
+        minMark = 0
+    
+    if maxDonationValue > 100:
+        maxMark=maxDonationValue+(100-(maxDonationValue%100))
+    else:
+        maxMark = 100
+
+    for mark in range(minMark, maxMark, 100 ):
+        marks.append(mark)
+    
+    marks.append(maxMark)
 
     return html.Div(children=[
         html.Title('Clan '+clan[conf.F_NAME]),
         html.H1(children=u'Statistiques du clan "'+clan[conf.F_NAME]+'"'),
         html.Div('Last update: ' + currentDate),
-        
 
-        dcc.Graph(
-            id='graph-dons',
-            figure={
-                'data': [
-                    {'x': history[0], 'y': history[1], 'type': 'bar', 'name': u'Dons reçus'},
-                    {'x': history[0], 'y': history[2], 'type': 'bar', 'name': u'Dons émis'},
-                ],
-                'layout': {
-                    'title': u'Rapport dons reçus / dons émis'
+        html.Div(children=[
+            dcc.Graph(id='graph-dons'),
+        ]),
+        html.Div(children=[
+            dcc.RangeSlider(
+                    id='graph-dons-slider',
+                    min=minDonationValue,
+                    max=maxDonationValue,
+                    marks={i: str(i) for i in marks},
+                    value=[0,limiteClanDonation],     
+                ) 
+        ]),
+        html.Br(),
+
+        html.Div(children=[
+            dcc.Graph(
+                id='graph-war',
+                figure={
+                    'data': [
+                        {'x': clanWar[0], 'y': clanWar[1], 'type': 'bar', 'name': u'Préparations'},
+                        {'x': clanWar[0], 'y': clanWar[2], 'type': 'bar', 'name': u'Guerre finale'},
+                    ],
+                    'layout': {
+                        'title': u'Rapport de guerre du ' + dateWar
+                    }
                 }
-            }
-        ),
-        dcc.Graph(
-            id='graph-war',
-            figure={
-                'data': [
-                    {'x': clanWar[0], 'y': clanWar[1], 'type': 'bar', 'name': u'Préparations'},
-                    {'x': clanWar[0], 'y': clanWar[2], 'type': 'bar', 'name': u'Guerre finale'},
-                ],
-                'layout': {
-                    'title': u'Rapport de guerre du ' + dateWar
-                }
-            }
-        )
+            )
+        ])
     ])
 
 
@@ -215,7 +252,7 @@ app.title = 'Statistiques de clan'
 @app.callback(
     dash.dependencies.Output('donation-graphic', 'figure'),
     [dash.dependencies.Input('member-filter', 'value')])
-def update_graph(donationMemberTag):
+def update_graph_donation(donationMemberTag):
     # get the current path (unix)
     currentPath = os.path.dirname(os.path.abspath(__file__))+'/'
 
@@ -235,6 +272,30 @@ def update_graph(donationMemberTag):
                 }
         }
 
+@app.callback(
+    dash.dependencies.Output('graph-dons', 'figure'),
+    [dash.dependencies.Input('graph-dons-slider', 'value')])
+def update_graph_live_donation(donationLimit):
+
+    filteredNames = []
+    filteredDonations = []
+    filteredReceivedDonations = []
+
+    for hist in history:
+        if hist[2] <= donationLimit[1] and hist[2] >= donationLimit[0]:
+            filteredNames.append(hist[0])
+            filteredDonations.append(hist[2])
+            filteredReceivedDonations.append(hist[1])
+            
+    return {
+            'data': [
+                    {'x': filteredNames, 'y': filteredReceivedDonations, 'type': 'bar', 'name': u'Dons reçus'},
+                    {'x': filteredNames, 'y': filteredDonations, 'type': 'bar', 'name': u'Dons émis'},
+                ],
+            'layout': {
+                    'title': u'Rapport dons reçus / dons émis entre '+str(donationLimit[0]) + ' et ' + str(donationLimit[1])
+                }
+        }
 ############################
 ### MAIN FONCTIONS
 ############################

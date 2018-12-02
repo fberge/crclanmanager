@@ -31,17 +31,14 @@ def getJsonWithCache(i_apiToken, i_playerId, i_clanId):
         # get clan data from player ID
         clan = profile.get_clan()
 
-        noms=[]
-        donsRecus=[]
-        donsEmis=[]
         # get all clan members
         for member in clan.members:
-            if (int(member[conf.F_DONATIONS]) < conf.K_CLANLIMITE):
-                noms.append(utils.removeSpecialChars(member[conf.F_NAME]))
-                donsRecus.append(int(member[conf.F_DONATIONSRECEIVED]))
-                donsEmis.append(int(member[conf.F_DONATIONS]))
-
-        r_history=[noms, donsRecus, donsEmis]
+            #if (int(member[conf.F_DONATIONS]) < conf.K_CLANLIMITE):
+            r_history.append([
+                            utils.removeSpecialChars(member[conf.F_NAME]),
+                            int(member[conf.F_DONATIONSRECEIVED]),
+                            int(member[conf.F_DONATIONS])
+                            ])
         # get clan data
         r_clan ={conf.F_NAME:utils.removeSpecialChars(clan[conf.F_NAME]),
                  conf.F_CLANDESCRIPTION:utils.removeSpecialChars(clan[conf.F_CLANDESCRIPTION]),
