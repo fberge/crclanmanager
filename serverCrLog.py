@@ -129,7 +129,7 @@ def tab_presentations():
     db.CloseDb(conn)
 
     return html.Div(children=[
-        html.H4(children='Présentation des membres'),
+        html.H4(children='Présentation des '+str(Nbr)+' membres'),
         # Body
         html.Table(
             [
@@ -149,7 +149,7 @@ def tab_presentations():
 ############################
 def tab_general():
     global history
-    clan, history, clanWar, dateWar = cr.getJsonWithCache(apiToken, playerId, clanId)
+    clan, history, clanWar, dateWar = cr.getJsonLiveData(apiToken, playerId, clanId)
     currentDate = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
 
     maxDonationValue = 0
