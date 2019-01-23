@@ -1,4 +1,10 @@
+############################
+### (c) Frédéric BERGE 2018
+### frederic.berge@gmail.com
+############################
 
+################################
+### IMPORTS
 import configparser as ConfigParser
 import os
 
